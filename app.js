@@ -1,6 +1,5 @@
 import React, {useState} from 'react';
 import {render} from 'react-dom';
-
 import DeckGL from '@deck.gl/react';
 import {
   COORDINATE_SYSTEM,
@@ -12,8 +11,12 @@ import {
 } from '@deck.gl/core';
 import {SimpleMeshLayer} from '@deck.gl/mesh-layers';
 import {SphereGeometry} from '@luma.gl/core';
+import { green } from '@material-ui/core/colors';
 
-import seismicData from './data/test.json';
+const DATA_URL = 'http://localhost:8000/seismic/?format=json'
+const seismicDataRaw = collectData();
+
+console.log(typeof(seismicDataRaw));
 
 const INITIAL_VIEW_STATE = {
   longitude: 0,
@@ -36,6 +39,14 @@ const sunLight = new SunLight({
 // create lighting effect with light sources
 const lightingEffect = new LightingEffect({ambientLight, sunLight});
 
+async function collectData() {
+  var data;
+  const res = await fetch(DATA_URL);
+
+  data = await res.json();
+  return data;
+}
+
 function renderTooltip(data) {
   if(data.picked == true)
     return data.coordinate;
@@ -43,7 +54,8 @@ function renderTooltip(data) {
 }
 
 export default function App({data}) {
-  const [hoverInfo, setHoverInfo] = useState(0);
+  const [hoverInfo, setHoverInfo] = useState([]);
+  const [seismicData, setSeismicData] = useState([]);
 
   let renderData = function(data) {
     let layers = [];
@@ -53,9 +65,9 @@ export default function App({data}) {
         id: 'seismic-sphere-' + idx,
         data,
         mesh: new SphereGeometry({radius: SEISMIC_RADIUS}),
-        opacity: data[idx][2] * 0.01,
-        sizeScale: 1.2,
-        getPosition: [data[idx][0], data[idx][1], MOON_RADIUS_METERS*1.3],
+        opacity: data[idx]['depth'] / 50,
+        sizeScale: 1.8,
+        getPosition: [data[idx]['lat'], data[idx]['long'], MOON_RADIUS_METERS*1.3],
         getColor: [255, 0, 0],
         getData: data[idx],
         wireframe: false,
@@ -82,10 +94,11 @@ export default function App({data}) {
     }),
   ];
 
+  seismicDataRaw.then((data) => setSeismicData(data));
   const dataLayers = renderData(seismicData);
 
   return (
-    <div className='moon-container' style={{ height: '100vh', width: '100vw', position: 'relative' }}>
+    <div className='moon-container' style={{ height: '100vh', width: '80vw', position: 'relative', left: '7.8%'}}>
       <DeckGL
         views={new GlobeView()}
         initialViewState={INITIAL_VIEW_STATE}
@@ -94,12 +107,14 @@ export default function App({data}) {
         layers={[backgroundLayers, dataLayers]}>
         {hoverInfo.object && (
           <div style={{position: 'absolute', zIndex: 1, pointerEvents: 'none', left: hoverInfo.x, top: hoverInfo.y, 
-          fontSize: '46px', padding: '10px', display: 'box', boxSizing: 'content-box'}}>
-            { 'latitude: ' + hoverInfo.layer.props.getData[0] }
+          fontSize: '36px', padding: '10px', display: 'box', boxSizing: 'content-box', backgroundColor: green}}>
+            { 'latitude: ' + hoverInfo.layer.props.getData['lat'] }
             <br></br>
-            { 'longtitude: ' + hoverInfo.layer.props.getData[1] }
+            { 'longtitude: ' + hoverInfo.layer.props.getData['long'] }
             <br></br>
-            { 'depth: ' + hoverInfo.layer.props.getData[2] }
+            { 'depth: ' + hoverInfo.layer.props.getData['depth'] }
+            <br></br>
+            { 'date: ' + hoverInfo.layer.props.getData['date'].slice(0, 10) }
           </div>
         )}
       </DeckGL>
@@ -109,6 +124,4 @@ export default function App({data}) {
 
 export function renderToDOM(container) {
   render(<App />, container);
-  renderData(seismicData);
-  console.log(seismicData);
 }
